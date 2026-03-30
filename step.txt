@@ -1,0 +1,361 @@
+We'll build a MySQL project for a delivery boy job management system. This will include database design, tables, sample data, and useful queries. The system helps track delivery boys, orders, assignments, and performance.
+
+---
+
+📌 Step 1: Requirements Analysis
+
+We need to store information about:
+
+· Delivery Boys – personal details, vehicle, availability status.
+· Customers – who place orders.
+· Orders – order details, status, assigned delivery boy, timestamps.
+· Payments – payment method, status.
+· Ratings – customer feedback for delivery boys.
+
+---
+
+📌 Step 2: ER Diagram (Conceptual)
+
+
+DeliveryBoy ──┬── Order ──── Customer
+              │
+              └── Rating
+
+Order ──── Payment
+
+
+· DeliveryBoy has many Orders (one-to-many)
+· Customer has many Orders (one-to-many)
+· Order has one Payment (one-to-one)
+· Order has one Rating (optional, one-to-one)
+
+---
+
+📌 Step 3: Create Database
+
+sql
+CREATE DATABASE delivery_management;
+USE delivery_management;
+
+
+---
+
+📌 Step 4: Create Tables
+
+1. Delivery Boy Table
+
+sql
+CREATE TABLE delivery_boy (
+    boy_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(15) UNIQUE NOT NULL,
+    vehicle_type ENUM('Bike', 'Scooter', 'Car') NOT NULL,
+    status ENUM('Available', 'On Delivery', 'Offline') DEFAULT 'Available',
+    joining_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+2. Customer Table
+
+sql
+CREATE TABLE customer (
+    cust_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(15) UNIQUE NOT NULL,
+    address TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+3. Orders Table
+
+sql
+CREATE TABLE orders (
+    order_id INT PRIMARY KEY AUTO_INCREMENT,
+    cust_id INT NOT NULL,
+    order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
+    delivery_address TEXT NOT NULL,
+    status ENUM('Pending', 'Assigned', 'Picked Up', 'Delivered', 'Cancelled') DEFAULT 'Pending',
+    delivery_boy_id INT,
+    assigned_time DATETIME,
+    delivered_time DATETIME,
+    FOREIGN KEY (cust_id) REFERENCES customer(cust_id) ON DELETE CASCADE,
+    FOREIGN KEY (delivery_boy_id) REFERENCES delivery_boy(boy_id) ON DELETE SET NULL
+);
+
+
+4. Payment Table
+
+sql
+CREATE TABLE payment (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT UNIQUE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    method ENUM('Cash', 'Card', 'UPI') NOT NULL,
+    status ENUM('Pending', 'Completed', 'Failed') DEFAULT 'Pending',
+    payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+);
+
+
+5. Rating Table
+
+sql
+CREATE TABLE rating (
+    rating_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT UNIQUE NOT NULL,
+    delivery_boy_id INT NOT NULL,
+    rating TINYINT CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
+    FOREIGN KEY (delivery_boy_id) REFERENCES delivery_boy(boy_id) ON DELETE CASCADE
+);
+
+
+---
+
+📌 Step 5: Insert Sample Data
+
+Insert Delivery Boys
+
+sql
+INSERT INTO delivery_boy (name, phone, vehicle_type, status, joining_date) VALUES
+('Rajesh Kumar', '9876543210', 'Bike', 'Available', '2024-01-15'),
+('Amit Sharma', '9876543211', 'Scooter', 'Available', '2024-02-20'),
+('Vikram Singh', '9876543212', 'Car', 'On Delivery', '2024-03-01'),
+('Priya Mehta', '9876543213', 'Bike', 'Offline', '2024-04-10');
+
+
+Insert Customers
+
+sql
+INSERT INTO customer (name, phone, address) VALUES
+('Suresh Gupta', '9988776655', '123, MG Road, Bangalore'),
+('Anjali Nair', '9988776656', '45, Lake View, Chennai'),
+('Rahul Verma', '9988776657', '78, Sector 15, Noida');
+
+
+Insert Orders
+
+sql
+INSERT INTO orders (cust_id, total_amount, delivery_address, status, delivery_boy_id, assigned_time, delivered_time) VALUES
+(1, 350.00, '123, MG Road, Bangalore', 'Delivered', 1, '2024-08-10 10:30:00', '2024-08-10 11:15:00'),
+(2, 520.50, '45, Lake View, Chennai', 'Assigned', 2, '2024-08-10 12:00:00', NULL),
+(3, 200.00, '78, Sector 15, Noida', 'Pending', NULL, NULL, NULL),
+(1, 180.00, '123, MG Road, Bangalore', 'Delivered', 3, '2024-08-09 18:00:00', '2024-08-09 18:45:00');
+
+
+Insert Payments
+
+sql
+INSERT INTO payment (order_id, amount, method, status) VALUES
+(1, 350.00, 'UPI', 'Completed'),
+(2, 520.50, 'Cash', 'Pending'),
+(3, 200.00, 'Card', 'Pending'),
+(4, 180.00, 'Cash', 'Completed');
+
+
+Insert Ratings
+
+sql
+INSERT INTO rating (order_id, delivery_boy_id, rating, comment) VALUES
+(1, 1, 5, 'Very fast delivery!'),
+(4, 3, 4, 'Good service, but a bit late.');
+
+
+---
+
+📌 Step 6: Useful Queries for Delivery Boy Job
+
+1. List all available delivery boys
+
+sql
+SELECT boy_id, name, phone, vehicle_type
+FROM delivery_boy
+WHERE status = 'Available';
+
+
+2. Assign a delivery boy to an order (update order and boy status)
+
+sql
+-- Assume we assign boy_id = 2 to order_id = 3
+UPDATE orders
+SET delivery_boy_id = 2, status = 'Assigned', assigned_time = NOW()
+WHERE order_id = 3;
+
+UPDATE delivery_boy
+SET status = 'On Delivery'
+WHERE boy_id = 2;
+
+
+3. View all pending deliveries for a specific delivery boy
+
+sql
+SELECT o.order_id, c.name AS customer, o.delivery_address, o.total_amount, o.status
+FROM orders o
+JOIN customer c ON o.cust_id = c.cust_id
+WHERE o.delivery_boy_id = 2 AND o.status IN ('Assigned', 'Picked Up');
+
+
+4. Mark an order as delivered
+
+sql
+UPDATE orders
+SET status = 'Delivered', delivered_time = NOW()
+WHERE order_id = 2;
+
+UPDATE delivery_boy
+SET status = 'Available'
+WHERE boy_id = (SELECT delivery_boy_id FROM orders WHERE order_id = 2);
+
+
+5. Calculate total deliveries and earnings per delivery boy
+
+sql
+SELECT 
+    db.boy_id, 
+    db.name, 
+    COUNT(o.order_id) AS total_deliveries,
+    SUM(o.total_amount) AS total_earnings
+FROM delivery_boy db
+LEFT JOIN orders o ON db.boy_id = o.delivery_boy_id AND o.status = 'Delivered'
+GROUP BY db.boy_id, db.name;
+
+
+6. View orders delivered in a date range
+
+sql
+SELECT o.order_id, c.name AS customer, db.name AS delivery_boy, o.delivered_time
+FROM orders o
+JOIN customer c ON o.cust_id = c.cust_id
+LEFT JOIN delivery_boy db ON o.delivery_boy_id = db.boy_id
+WHERE o.status = 'Delivered' 
+  AND DATE(o.delivered_time) BETWEEN '2024-08-09' AND '2024-08-10';
+
+
+7. Average rating per delivery boy
+
+sql
+SELECT 
+    db.boy_id, 
+    db.name, 
+    AVG(r.rating) AS avg_rating,
+    COUNT(r.rating_id) AS total_ratings
+FROM delivery_boy db
+LEFT JOIN rating r ON db.boy_id = r.delivery_boy_id
+GROUP BY db.boy_id, db.name;
+
+
+---
+
+📌 Step 7: Stored Procedure – Auto-assign delivery boy
+
+This procedure picks the first available delivery boy and assigns them to an order.
+
+sql
+DELIMITER //
+
+CREATE PROCEDURE auto_assign_delivery_boy(IN order_id_input INT)
+BEGIN
+    DECLARE v_boy_id INT;
+
+    -- Find an available delivery boy
+    SELECT boy_id INTO v_boy_id
+    FROM delivery_boy
+    WHERE status = 'Available'
+    LIMIT 1;
+
+    -- If found, assign
+    IF v_boy_id IS NOT NULL THEN
+        UPDATE orders
+        SET delivery_boy_id = v_boy_id, status = 'Assigned', assigned_time = NOW()
+        WHERE order_id = order_id_input;
+
+        UPDATE delivery_boy
+        SET status = 'On Delivery'
+        WHERE boy_id = v_boy_id;
+
+        SELECT 'Delivery boy assigned successfully' AS message, v_boy_id AS boy_id;
+    ELSE
+        SELECT 'No available delivery boy found' AS message;
+    END IF;
+END //
+
+DELIMITER ;
+
+
+Usage:
+
+sql
+CALL auto_assign_delivery_boy(3);
+
+
+---
+
+📌 Step 8: Trigger – Update delivery boy status when order is assigned
+
+Automatically updates delivery boy status when an order is assigned (if not done manually).
+
+sql
+DELIMITER //
+
+CREATE TRIGGER after_order_assigned
+AFTER UPDATE ON orders
+FOR EACH ROW
+BEGIN
+    IF NEW.delivery_boy_id IS NOT NULL AND OLD.delivery_boy_id IS NULL THEN
+        UPDATE delivery_boy
+        SET status = 'On Delivery'
+        WHERE boy_id = NEW.delivery_boy_id;
+    END IF;
+END //
+
+DELIMITER ;
+
+
+---
+
+📌 Step 9: View – Pending deliveries with customer details
+
+Create a view for easy access to pending orders.
+
+sql
+CREATE VIEW pending_deliveries AS
+SELECT 
+    o.order_id, 
+    c.name AS customer_name, 
+    c.phone AS customer_phone,
+    o.delivery_address,
+    o.total_amount,
+    o.status,
+    o.assigned_time,
+    db.name AS delivery_boy
+FROM orders o
+JOIN customer c ON o.cust_id = c.cust_id
+LEFT JOIN delivery_boy db ON o.delivery_boy_id = db.boy_id
+WHERE o.status IN ('Pending', 'Assigned', 'Picked Up');
+
+
+Query the view:
+
+sql
+SELECT * FROM pending_deliveries;
+
+
+---
+
+📌 Summary
+
+You now have a complete MySQL project for a delivery boy job management system. You can:
+
+· Manage delivery boys and customers.
+· Track orders and assignments.
+· Handle payments and ratings.
+· Automate assignment with stored procedures.
+· Use triggers to maintain data consistency.
+· Simplify queries with views.
+
+This project can be extended with features like real-time tracking, route optimization, and admin dashboards.
